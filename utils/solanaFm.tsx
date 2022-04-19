@@ -16,7 +16,75 @@ const EXPONENTIAL_FACTOR = 10;
 // out how to unfreeze, just had to make a new one). probably not intentional but good to be very conservative here.
 const TIMEOUT_BETWEEN_CALLS = 10000;
 
-// Queries solana.fm account-inputs for `tokenAccountAddress` with an end date of `date`
+async function _fetchAllAccountInputsWithUrlAndDates(
+  url: URL,
+  startDate: Date,
+  endDate: Date
+) {
+  const pageLimit = 100;
+
+  const requestHeaders = new Headers([
+    ["Content-Type", "application/json"],
+    ["apikey", process.env.SOLANA_FM_API_KEY || ""],
+  ]);
+
+  const params = new URLSearchParams([["limit", pageLimit.toString()]]);
+
+  console.log("start", startDate, "end", endDate);
+  params.set("from", startDate.toISOString());
+  params.set("to", endDate.toISOString());
+  url.search = params.toString();
+
+  let response = await fetch(url.toString(), { headers: requestHeaders });
+
+  let results;
+  let responseText;
+  try {
+    responseText = await response.text();
+    results = JSON.parse(responseText);
+  } catch (error) {
+    console.log("JSON error", responseText, error);
+    return undefined;
+  }
+
+  let allResults: Array<SolanaFMAccountInput> = [];
+  allResults = allResults.concat(results);
+
+  // results are in random order so even for token balance (where we only care about the most recent account-input), we
+  // still need to get every single page and then find the most recent account-input.
+  let page = 2;
+  let maxPages = 1000000; // infinite loop protection
+  while (results.length == pageLimit && page < maxPages) {
+    console.log("fetching page", page);
+
+    params.set("page", page.toString());
+    url.search = params.toString();
+
+    response = await fetch(url.toString(), { headers: requestHeaders });
+
+    try {
+      responseText = await response.text();
+      results = JSON.parse(responseText);
+    } catch (error) {
+      console.log("JSON error", responseText, error);
+      return undefined;
+    }
+
+    // console.log(url.toString(), ", response", response, results);
+
+    allResults = allResults.concat(results);
+
+    page += 1;
+
+    // rate limiting here in case we make too many calls
+    await new Promise((f) => setTimeout(f, TIMEOUT_BETWEEN_CALLS));
+  }
+
+  return allResults;
+}
+
+// Queries solana.fm account-inputs for the balance of `tokenAccountAddress` (which must belong to `tokenMintAddress`)
+// with an end date of `date`
 // Uses exponentially larger time windows until we find the most recent transaction and then read `postBalance` from that
 // If previousBalance and previousDate are cached (e.g. from a previous call) and passed in, then we stop there and
 // return those values if nothing is found (can also use it to pass in 0 and a min startDate to limit the search)
@@ -28,81 +96,32 @@ export async function tokenAccountBalanceOnDateSolanaFm(
   previousBalance: number,
   previousDate: Date
 ) {
-  const pageLimit = 100;
-
   const url = new URL(
     `https://api-alpha.solana.fm/api/v1/account-inputs/${tokenAccountAddress}`
   );
-
-  const requestHeaders = new Headers([
-    ["Content-Type", "application/json"],
-    ["apikey", process.env.SOLANA_FM_API_KEY || ""],
-  ]);
-
-  const params = new URLSearchParams([["limit", pageLimit.toString()]]);
 
   let delta = START_TIME_DELTA;
   let startDate = new Date(date.getTime() - delta);
 
   // this won't ever infinite loop, eventually we'll pass previousDate and return
   while (true) {
-    console.log("start", startDate, "end", date);
-    params.set("from", startDate.toISOString());
-    params.set("to", date.toISOString());
-    url.search = params.toString();
-
-    let response = await fetch(url.toString(), { headers: requestHeaders });
-
-    let results;
-    let responseText;
-    try {
-      responseText = await response.text();
-      results = JSON.parse(responseText);
-    } catch (error) {
-      console.log("JSON error", responseText, error);
-      return 0;
-    }
-
     // console.log(url.toString(), ", response", response, results);
+
+    let results = await _fetchAllAccountInputsWithUrlAndDates(
+      url,
+      startDate,
+      date
+    );
+
+    if (results === undefined) {
+      // TODO: handle error here
+      return undefined;
+    }
 
     // found some results, get the most recent one
     if (results.length > 0) {
-      let allResults: Array<SolanaFMAccountInput> = [];
-      allResults = allResults.concat(results);
-
-      // results are in random order so need to get every single page and then find the most recent account-input
-      let page = 2;
-      let maxPages = 1000000; // infinite loop protection
-      while (results.length == pageLimit && page < maxPages) {
-        console.log("fetching page", page);
-
-        params.set("page", page.toString());
-        url.search = params.toString();
-
-        response = await fetch(url.toString(), { headers: requestHeaders });
-
-        try {
-          responseText = await response.text();
-          results = JSON.parse(responseText);
-        } catch (error) {
-          console.log("JSON error", responseText, error);
-          return 0;
-        }
-
-        // console.log(url.toString(), ", response", response, results);
-
-        allResults = allResults.concat(results);
-
-        page += 1;
-
-        // rate limiting here in case we make too many calls
-        await new Promise((f) => setTimeout(f, TIMEOUT_BETWEEN_CALLS));
-      }
-
-      // console.log("allresults", allResults);
-
       // now look through allResults and pick out the most recent result
-      let max = allResults.reduce((previous, current) => {
+      let max = results.reduce((previous, current) => {
         // returns both the token inputs and tokenId == '' for lamports, so need to ignore the latter
         if (current.tokenId !== tokenMintAddress) {
           return previous;
@@ -115,7 +134,7 @@ export async function tokenAccountBalanceOnDateSolanaFm(
       // console.log("Max from solana.fm", max);
 
       // TODO: could probably put in a sanity check alert here, in theory they should all be the same balance
-      let sameTimeAsMax = allResults.filter((value) => {
+      let sameTimeAsMax = results.filter((value) => {
         return (
           value.timestamp == max.timestamp &&
           value.postBalance != max.postBalance
@@ -184,6 +203,11 @@ export async function getAllTokenBalancesBetweenDatesSolanaFm(
       previousDate
     );
 
+    if (balance === undefined) {
+      // TODO: log error
+      continue;
+    }
+
     console.log(currentDate, "balance = ", balance);
 
     allBalances.push({ date: currentDate, balance: balance });
@@ -203,4 +227,85 @@ export async function getAllTokenBalancesBetweenDatesSolanaFm(
   console.log("balances", allBalances);
 
   return allBalances;
+}
+
+export type SolanaFMTokenAccountInfo = {
+  tokenAccountAddress: string;
+  balance: number;
+  incomingTransactions: Set<string>;
+  outgoingTransactions: Set<string>;
+};
+
+// Queries solana.fm account-inputs for all token accounts belonging to `tokenMintAddress` with any activity between
+// `startDate` and `endDate`
+// Returns a list of all SolanaFMTokenAccountInfo (i.e. this would probably be used to see which new accounts were
+// created that day and for updating balance/txn count for any previous accounts against some running db list)
+// https://docs.solana.fm/docs/apis/account-input#retrieve-account-inputs-by-a-specific-token
+export async function tokenAccountsInfoBetweenDatesSolanaFm(
+  tokenMintAddress: string,
+  startDate: Date,
+  endDate: Date
+) {
+  const url = new URL(
+    `https://api-alpha.solana.fm/api/v1/account-inputs/tokens/${tokenMintAddress}`
+  );
+
+  let results = await _fetchAllAccountInputsWithUrlAndDates(
+    url,
+    startDate,
+    endDate
+  );
+
+  if (results === undefined) {
+    // TODO: handle error here
+    return undefined;
+  }
+
+  let accountInfoMap: { [key: string]: SolanaFMTokenAccountInfo } = {};
+
+  // sort by date so that we can safely update `balance` to the latest one every time
+  results
+    .sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )
+    .forEach((result) => {
+      if (result.tokenId !== tokenMintAddress) {
+        // TODO: this shouldn't ever happne, should log an error or something
+        console.log("mismatched token id", result.tokenId, tokenMintAddress);
+        return;
+      }
+
+      if (accountInfoMap[result.account] === undefined) {
+        accountInfoMap[result.account] = {
+          tokenAccountAddress: result.account,
+          balance: 0,
+          incomingTransactions: new Set<string>(),
+          outgoingTransactions: new Set<string>(),
+        };
+      }
+
+      accountInfoMap[result.account].balance = result.postBalance;
+
+      // if it's a 0 change transaction, just count it as incoming? this happens a lot on sfm since it doesn't
+      // have decimal precision
+      if (result.postBalance >= result.preBalance) {
+        accountInfoMap[result.account].incomingTransactions.add(
+          result.transactionHash
+        );
+      } else {
+        accountInfoMap[result.account].outgoingTransactions.add(
+          result.transactionHash
+        );
+      }
+    });
+
+  console.log(results.length, " results");
+
+  // TODO: Error ones are currently indistinguisableh from < 1 sRLY (both pre/post balance are 0), should try to
+  // exclude error txns entirely, otherwise we'll need to ignore everything 0 < x < 1 too
+
+  // TODO: postBalance as "-1" seems to mean CloseAccount instruction, should probably exclude/handle those manually
+
+  return Object.values(accountInfoMap);
 }

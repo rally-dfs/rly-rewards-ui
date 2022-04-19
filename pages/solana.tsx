@@ -5,6 +5,7 @@ import { getAccount, TOKEN_PROGRAM_ID, Account } from "@solana/spl-token";
 import {
   tokenAccountBalanceOnDateSolanaFm,
   getAllTokenBalancesBetweenDatesSolanaFm,
+  tokenAccountsInfoBetweenDatesSolanaFm,
 } from "../utils/solanaFm";
 import {
   tokenAccountBalanceOnDateBitquery,
@@ -260,6 +261,14 @@ export async function getServerSideProps() {
   // );
 
   // console.log("balances", balances);
+
+  // solana.fm token accounts info for RLY (in real life, we'd run this for some APP token instead, probably less txns)
+  // let results = await tokenAccountsInfoBetweenDatesSolanaFm(
+  //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
+  //   new Date("2022-03-27T00:00:00Z"),
+  //   new Date("2022-03-28T00:00:00Z")
+  // );
+  // console.log("results ", results);
 
   return { props: {} };
 }
