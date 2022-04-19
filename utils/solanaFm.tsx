@@ -305,7 +305,8 @@ export async function tokenAccountsInfoBetweenDatesSolanaFm(
   // TODO: Error ones are currently indistinguisableh from < 1 sRLY (both pre/post balance are 0), should try to
   // exclude error txns entirely, otherwise we'll need to ignore everything 0 < x < 1 too
 
-  // TODO: postBalance as "-1" seems to mean CloseAccount instruction, should probably exclude/handle those manually
+  // TODO: postBalance as "-1" seems to mean CloseAccount instruction, we're ignoring closed accounts right now,
+  // in the future we could take it into account somehow (e.g. manually reduce the number of "total accounts")
 
   return Object.values(accountInfoMap);
 }

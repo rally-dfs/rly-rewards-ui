@@ -10,6 +10,7 @@ import {
 import {
   tokenAccountBalanceOnDateBitquery,
   getAllTokenBalancesBetweenDatesBitquery,
+  tokenAccountsInfoBetweenDatesBitquery,
 } from "../utils/bitquery";
 
 const SOL_NETWORK = "testnet"; // TODO: can probably replace this with a const from wallet or something
@@ -203,7 +204,7 @@ export async function getServerSideProps() {
   // };
 
   // e.g. sfm looking up sRLY balance for DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ on 2022-03-28
-  // await tokenAccountBalanceOnDateSolanaFm(
+  // let balance = await tokenAccountBalanceOnDateSolanaFm(
   //   "DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ",
   //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
   //   new Date("2022-03-28T00:00:00Z"),
@@ -211,8 +212,9 @@ export async function getServerSideProps() {
   //   0,
   //   new Date("2022-02-01T00:00:00Z")
   // );
+  // console.log("balance", balance);
 
-  // // // e.g. bitquery looking up sRLY balance for DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ on 2022-03-28
+  // e.g. bitquery looking up sRLY balance for DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ on 2022-03-28
   // await tokenAccountBalanceOnDateBitquery(
   //   "DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ",
   //   "Q11FqKrnqyW2w3dD7g14NfHgu4Knii2Y2ERrVrZAkEU",
@@ -226,7 +228,7 @@ export async function getServerSideProps() {
   // await getAllTokenBalancesBetweenDatesSolanaFm(
   //   "DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ",
   //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
-  //   new Date("2022-02-03T00:00:00Z"),
+  //   new Date("2022-02-20T00:00:00Z"),
   //   new Date("2022-03-28T00:00:00Z"),
   //   undefined
   // );
@@ -265,10 +267,19 @@ export async function getServerSideProps() {
   // solana.fm token accounts info for RLY (in real life, we'd run this for some APP token instead, probably less txns)
   // let results = await tokenAccountsInfoBetweenDatesSolanaFm(
   //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
-  //   new Date("2022-03-27T00:00:00Z"),
+  //   new Date("2022-03-27T23:50:00Z"),
   //   new Date("2022-03-28T00:00:00Z")
   // );
   // console.log("results ", results);
+
+  // // bitquery token accounts info for RLY (in real life, we'd run this for some APP token instead, probably less txns)
+  // // note this returns delta(balance) from startDate instead of actual balance
+  // let resultsbq = await tokenAccountsInfoBetweenDatesBitquery(
+  //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
+  //   new Date("2022-03-27T23:50:00Z"),
+  //   new Date("2022-03-28T00:00:00Z")
+  // );
+  // console.log("results ", resultsbq);
 
   return { props: {} };
 }

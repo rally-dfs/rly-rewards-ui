@@ -28,13 +28,14 @@ type BitquerySolanaTransferAccount = {
 };
 
 // Helper for tokenAccountBalanceOnDateBitquery, just so we can reuse the code for two different filters
-// `filter` is either "senderAddress: {is: $tokenAccountOwnerAddress}" or "receiverAddress: {is: $tokenAccountOwnerAddress}"
+// `tokenAccountOwnerFilter` is either "senderAddress: {is: $tokenAccountOwnerAddress}" or
+// "receiverAddress: {is: $tokenAccountOwnerAddress}" or null (if no filter needed)
 async function _transferAmountsWithFilter(
-  filter: string,
-  tokenAccountOwnerAddress: string,
   tokenMintAddress: string,
-  date: Date,
-  previousDate: Date
+  startDate: Date,
+  endDate: Date,
+  tokenAccountOwnerFilter?: string,
+  tokenAccountOwnerAddress?: string
 ) {
   // TODO: might be safer if we pass in a set of previous txn IDs or something too to prevent under/double counting
 
@@ -49,18 +50,27 @@ async function _transferAmountsWithFilter(
   while (hasMorePages && offset < maxOffset) {
     console.log("fetching offset", offset);
 
+    // make sure to only include the gql variable if we have a filter
+    const tokenAccountOwnerFilterString = tokenAccountOwnerFilter
+      ? tokenAccountOwnerFilter
+      : "";
+    const tokenAccountOwnerVariableString = tokenAccountOwnerFilter
+      ? "$tokenAccountOwnerAddress: String!,"
+      : "";
+
     const { data } = await queryApollo(
       bitqueryApolloClient,
       `query TransfersForSenderAndToken(
             $startTime: ISO8601DateTime!, $endTime: ISO8601DateTime!, 
-            $tokenMintAddress: String!, $tokenAccountOwnerAddress: String!, 
+            $tokenMintAddress: String!,
+            ${tokenAccountOwnerVariableString}
             $limit: Int!, $offset: Int!) {
           solana {
             transfers(
               options: {limit: $limit, offset: $offset}
               time: {between: [$startTime, $endTime]}
               currency: {is: $tokenMintAddress}
-              ${filter}
+              ${tokenAccountOwnerFilterString}
             ) {
               amount
               transferType
@@ -82,8 +92,8 @@ async function _transferAmountsWithFilter(
         }  
         `,
       {
-        startTime: previousDate.toISOString(),
-        endTime: date.toISOString(),
+        startTime: startDate.toISOString(),
+        endTime: endDate.toISOString(),
         tokenMintAddress: tokenMintAddress,
         tokenAccountOwnerAddress: tokenAccountOwnerAddress,
         limit: pageLimit,
@@ -120,49 +130,54 @@ export async function tokenAccountBalanceOnDateBitquery(
 ) {
   const transfersOut: Array<BitquerySolanaTransfer> =
     await _transferAmountsWithFilter(
-      "senderAddress: {is: $tokenAccountOwnerAddress}",
-      tokenAccountOwnerAddress,
       tokenMintAddress,
+      previousDate,
       date,
-      previousDate
+      "senderAddress: {is: $tokenAccountOwnerAddress}",
+      tokenAccountOwnerAddress
     );
 
-  const totalTransfersOut = transfersOut
-    .filter((transfer) => {
-      return (
-        // not sure what other transferTypes exist but seems safe to filter by "transfer"
-        transfer.transferType === "transfer" &&
-        // this owner might have other token accounts so filter those out
-        transfer.sender.mintAccount == tokenAccountAddress
-      );
-    })
-    .reduce((accumulator, currentTransfer) => {
+  const filteredTransfersOut = transfersOut.filter((transfer) => {
+    return (
+      // not sure what other transferTypes exist but seems safe to filter by "transfer"
+      transfer.transferType === "transfer" &&
+      // this owner might have other token accounts so filter those out
+      transfer.sender.mintAccount == tokenAccountAddress
+    );
+  });
+  const totalTransfersOut = filteredTransfersOut.reduce(
+    (accumulator, currentTransfer) => {
       return accumulator + currentTransfer.amount;
-    }, 0);
+    },
+    0
+  );
+
 
   // same as transfersOut but filter by `receiverAddress` instead of `senderAddress`
   const transfersIn: Array<BitquerySolanaTransfer> =
     await _transferAmountsWithFilter(
-      "receiverAddress: {is: $tokenAccountOwnerAddress}",
-      tokenAccountOwnerAddress,
       tokenMintAddress,
+      previousDate,
       date,
-      previousDate
+      "receiverAddress: {is: $tokenAccountOwnerAddress}",
+      tokenAccountOwnerAddress
     );
 
   // same as totalTransfersOut but filter by `transfer.receiver` instead of `transfer.sender`
-  const totalTransfersIn = transfersIn
-    .filter((transfer) => {
-      return (
-        // not sure what other transferTypes exist but seems safe to filter by "transfer"
-        transfer.transferType === "transfer" &&
-        // this owner might have other token accounts so filter those out
-        transfer.receiver.mintAccount == tokenAccountAddress
-      );
-    })
-    .reduce((accumulator, currentTransfer) => {
+  const filteredTransfersIn = transfersIn.filter((transfer) => {
+    return (
+      // not sure what other transferTypes exist but seems safe to filter by "transfer"
+      transfer.transferType === "transfer" &&
+      // this owner might have other token accounts so filter those out
+      transfer.receiver.mintAccount == tokenAccountAddress
+    );
+  });
+  const totalTransfersIn = filteredTransfersIn.reduce(
+    (accumulator, currentTransfer) => {
       return accumulator + currentTransfer.amount;
-    }, 0);
+    },
+    0
+  );
 
   console.log(
     "bitquery tsf out",
@@ -245,4 +260,77 @@ export async function getAllTokenBalancesBetweenDatesBitquery(
   console.log("balances", allBalances);
 
   return allBalances;
+}
+
+export type BitqueryTokenAccountInfo = {
+  tokenAccountAddress: string;
+  balanceChange: number;
+  incomingTransactions: Set<string>;
+  outgoingTransactions: Set<string>;
+};
+
+// Queries bitquery solana.transfers for all token accounts belonging to `tokenMintAddress` with any activity between
+// `startDate` and `endDate`
+// Returns a list of BitqueryTokenAccountInfo (i.e. this would probably be used to see which new accounts were
+// created that day and for updating balance/txn count for any previous accounts against some running db list)
+// Note this interface is slightly different than tokenAccountsInfoBetweenDatesSolanaFm. Since bitquery
+// solana.transfers doesn't have any balances, we return the change in balance between startDate and endDate rather
+// than the final balance (so this must be combined with some previous call's balance or called multiple times)
+export async function tokenAccountsInfoBetweenDatesBitquery(
+  tokenMintAddress: string,
+  startDate: Date,
+  endDate: Date
+) {
+  let results = await _transferAmountsWithFilter(
+    tokenMintAddress,
+    startDate,
+    endDate,
+    undefined,
+    undefined
+  );
+
+  let accountInfoMap: { [key: string]: BitqueryTokenAccountInfo } = {};
+
+  results.forEach((result) => {
+    // TODO: currently ignoring "mint" "burn" and "self" (think this is when the same owner transfers
+    // transfers to themselves or something) but could count them too
+    if (result.transferType !== "transfer") {
+      return;
+    }
+
+    if (accountInfoMap[result.sender.mintAccount] === undefined) {
+      accountInfoMap[result.sender.mintAccount] = {
+        tokenAccountAddress: result.sender.mintAccount,
+        balanceChange: 0,
+        incomingTransactions: new Set<string>(),
+        outgoingTransactions: new Set<string>(),
+      };
+    }
+
+    if (accountInfoMap[result.receiver.mintAccount] === undefined) {
+      accountInfoMap[result.receiver.mintAccount] = {
+        tokenAccountAddress: result.receiver.mintAccount,
+        balanceChange: 0,
+        incomingTransactions: new Set<string>(),
+        outgoingTransactions: new Set<string>(),
+      };
+    }
+
+    accountInfoMap[result.sender.mintAccount].balanceChange -= result.amount;
+    accountInfoMap[result.receiver.mintAccount].balanceChange += result.amount;
+
+    accountInfoMap[result.sender.mintAccount].outgoingTransactions.add(
+      result.transaction.signature
+    );
+    accountInfoMap[result.receiver.mintAccount].incomingTransactions.add(
+      result.transaction.signature
+    );
+  });
+
+  console.log(results.length, " results");
+
+  // TODO: we're ignoring closed accounts right now, in the future we could take it into account somehow (e.g. manually
+  // reduce the number of "total accounts")
+
+  return Object.values(accountInfoMap);
 }
