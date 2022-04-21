@@ -1,3 +1,5 @@
+import { getTransactionSuccessForHashesBitquery } from "./bitquery";
+
 type SolanaFMAccountInput = {
   transactionHash: string;
   account: string;
@@ -16,7 +18,7 @@ const EXPONENTIAL_FACTOR = 10;
 // out how to unfreeze, just had to make a new one). probably not intentional but good to be very conservative here.
 const TIMEOUT_BETWEEN_CALLS = 10000;
 
-async function _fetchAllAccountInputsWithUrlAndDates(
+async function _fetchAllResultsWithUrlAndDates<T>(
   url: URL,
   startDate: Date,
   endDate: Date
@@ -47,7 +49,7 @@ async function _fetchAllAccountInputsWithUrlAndDates(
     return undefined;
   }
 
-  let allResults: Array<SolanaFMAccountInput> = [];
+  let allResults: Array<T> = [];
   allResults = allResults.concat(results);
 
   // results are in random order so even for token balance (where we only care about the most recent account-input), we
@@ -107,7 +109,7 @@ export async function tokenAccountBalanceOnDateSolanaFm(
   while (true) {
     // console.log(url.toString(), ", response", response, results);
 
-    let results = await _fetchAllAccountInputsWithUrlAndDates(
+    let results = await _fetchAllResultsWithUrlAndDates<SolanaFMAccountInput>(
       url,
       startDate,
       date
@@ -234,13 +236,24 @@ export type SolanaFMTokenAccountInfo = {
   balance: number;
   incomingTransactions: Set<string>;
   outgoingTransactions: Set<string>;
+  // subOneTransactions should be used in conjunction with bitquery results (which have full precision) to tell
+  // whether it's incoming, outgoing, or zero (and should be discarded)
+  subOneTransactions: Set<string>;
 };
 
 // Queries solana.fm account-inputs for all token accounts belonging to `tokenMintAddress` with any activity between
 // `startDate` and `endDate`
-// Returns a list of all SolanaFMTokenAccountInfo (i.e. this would probably be used to see which new accounts were
-// created that day and for updating balance/txn count for any previous accounts against some running db list)
+// Returns a map of {tokenAccountAddress => SolanaFMTokenAccountInfo} (i.e. this would probably be used to see which new
+// accounts were created that day and for updating balance/txn count for any previous accounts against some running
+// db list)
 // https://docs.solana.fm/docs/apis/account-input#retrieve-account-inputs-by-a-specific-token
+//
+// We're doing some extra filtering of the raw results to better match bitquery's results (which is pretty much what
+// we desire). i.e. bitquery automatically excludes failed transactions, automatically excludes CloseAccount
+// instructions, and automatically excludes net-zero transfers (handled with `subOneTransactions`).
+//
+// It's the caller's responsibility to cross reference `subOneTransactions` with the results of bitquery
+// (tokenAccountsInfoBetweenDatesBitquery) to determine how to categorize or discard them.
 export async function tokenAccountsInfoBetweenDatesSolanaFm(
   tokenMintAddress: string,
   startDate: Date,
@@ -250,7 +263,7 @@ export async function tokenAccountsInfoBetweenDatesSolanaFm(
     `https://api-alpha.solana.fm/api/v1/account-inputs/tokens/${tokenMintAddress}`
   );
 
-  let results = await _fetchAllAccountInputsWithUrlAndDates(
+  let results = await _fetchAllResultsWithUrlAndDates<SolanaFMAccountInput>(
     url,
     startDate,
     endDate
@@ -260,6 +273,13 @@ export async function tokenAccountsInfoBetweenDatesSolanaFm(
     // TODO: handle error here
     return undefined;
   }
+
+  // ideally we wouldn't be using bitquery here but there's no way to get this info from solana.fm without loading
+  // all transactions (for all tokens, i.e. millions per day). make sure to err on the side of including to protect
+  // from bitquery possibly missing txns (i.e. if a txn is not found in hashToSuccessMap, just treat it as successful)
+  const hashToSuccessMap = await getTransactionSuccessForHashesBitquery(
+    results.map((result) => result.transactionHash)
+  );
 
   let accountInfoMap: { [key: string]: SolanaFMTokenAccountInfo } = {};
 
@@ -271,8 +291,26 @@ export async function tokenAccountsInfoBetweenDatesSolanaFm(
     )
     .forEach((result) => {
       if (result.tokenId !== tokenMintAddress) {
-        // TODO: this shouldn't ever happne, should log an error or something
+        // TODO: this shouldn't ever happen, should log an error or something
         console.log("mismatched token id", result.tokenId, tokenMintAddress);
+        return;
+      }
+
+      // exclude any unsuccessful transactions
+      // if a txn is not found in hashToSuccessMap, just treat it as successful (see note on bitquery above)
+      if (hashToSuccessMap[result.transactionHash] === false) {
+        console.log("ignoring failed txn", result.transactionHash);
+        return;
+      }
+
+      // exclude any CloseAccount txns, which show up as a `0 -> -1` transfer (we could go either way on whether to
+      // include these, but at least this matches bitquery's results, and the previous non-zero -> 0 txn would already
+      // be captured in another txn so we aren't really missing any substantial transfer)
+      // note that sometimes, sfm does have `non-zero -> -1` transfers (probably due to rounding), so it's not enough
+      // to only check postBalance == -1, we must also check preBalance == 0
+      // (e.g. 55JVfbghMEGAkTo1tCqYByJfgVm9n4g72XEa131sicxw4c32PZEp1MCZGT1Sx2JBNAoE8MurcG2f2n9wU5sg3tLA)
+      if (result.preBalance === 0 && result.postBalance === -1) {
+        console.log("ignoring CloseAccount txn", result.transactionHash);
         return;
       }
 
@@ -282,14 +320,19 @@ export async function tokenAccountsInfoBetweenDatesSolanaFm(
           balance: 0,
           incomingTransactions: new Set<string>(),
           outgoingTransactions: new Set<string>(),
+          subOneTransactions: new Set<string>(),
         };
       }
 
       accountInfoMap[result.account].balance = result.postBalance;
 
-      // if it's a 0 change transaction, just count it as incoming? this happens a lot on sfm since it doesn't
-      // have decimal precision
-      if (result.postBalance >= result.preBalance) {
+      if (result.postBalance == result.preBalance) {
+        // this might be a 0 transaction or just one with 0 < amount < 1, the caller should cross reference these with
+        // bitquery's results to determine whether it's incoming/outgoing or should be discarded
+        accountInfoMap[result.account].subOneTransactions.add(
+          result.transactionHash
+        );
+      } else if (result.postBalance > result.preBalance) {
         accountInfoMap[result.account].incomingTransactions.add(
           result.transactionHash
         );
@@ -302,11 +345,8 @@ export async function tokenAccountsInfoBetweenDatesSolanaFm(
 
   console.log(results.length, " results");
 
-  // TODO: Error ones are currently indistinguisableh from < 1 sRLY (both pre/post balance are 0), should try to
-  // exclude error txns entirely, otherwise we'll need to ignore everything 0 < x < 1 too
-
-  // TODO: postBalance as "-1" seems to mean CloseAccount instruction, we're ignoring closed accounts right now,
+  // TODO: "transfer from 0 -> -1" seems to mean CloseAccount instruction, we're ignoring closed accounts right now,
   // in the future we could take it into account somehow (e.g. manually reduce the number of "total accounts")
 
-  return Object.values(accountInfoMap);
+  return accountInfoMap;
 }

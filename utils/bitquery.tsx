@@ -14,12 +14,13 @@ const TIMEOUT_BETWEEN_CALLS = 10000;
 type BitquerySolanaTransfer = {
   amount: number;
   transferType: string; // i think this is always "transfer"?
-  transaction: BitquerySolanaTransferTransaction;
+  transaction: BitquerySolanaTransaction;
   sender: BitquerySolanaTransferAccount;
   receiver: BitquerySolanaTransferAccount;
 };
-type BitquerySolanaTransferTransaction = {
+type BitquerySolanaTransaction = {
   signature: string;
+  success: boolean;
 };
 type BitquerySolanaTransferAccount = {
   address: string;
@@ -27,7 +28,8 @@ type BitquerySolanaTransferAccount = {
   type: string; // i think this is always "account"?
 };
 
-// Helper for tokenAccountBalanceOnDateBitquery, just so we can reuse the code for two different filters
+// Helper for tokenAccountBalanceOnDateBitquery and tokenAccountsInfoBetweenDatesBitquery, just so we can reuse the
+// code for different filters
 // `tokenAccountOwnerFilter` is either "senderAddress: {is: $tokenAccountOwnerAddress}" or
 // "receiverAddress: {is: $tokenAccountOwnerAddress}" or null (if no filter needed)
 async function _transferAmountsWithFilter(
@@ -76,6 +78,7 @@ async function _transferAmountsWithFilter(
               transferType
               transaction {
                 signature
+                success
               }
               sender {
                 address
@@ -142,7 +145,8 @@ export async function tokenAccountBalanceOnDateBitquery(
       // not sure what other transferTypes exist but seems safe to filter by "transfer"
       transfer.transferType === "transfer" &&
       // this owner might have other token accounts so filter those out
-      transfer.sender.mintAccount == tokenAccountAddress
+      transfer.sender.mintAccount == tokenAccountAddress &&
+      transfer.transaction.success
     );
   });
   const totalTransfersOut = filteredTransfersOut.reduce(
@@ -169,7 +173,8 @@ export async function tokenAccountBalanceOnDateBitquery(
       // not sure what other transferTypes exist but seems safe to filter by "transfer"
       transfer.transferType === "transfer" &&
       // this owner might have other token accounts so filter those out
-      transfer.receiver.mintAccount == tokenAccountAddress
+      transfer.receiver.mintAccount == tokenAccountAddress &&
+      transfer.transaction.success
     );
   });
   const totalTransfersIn = filteredTransfersIn.reduce(
@@ -232,23 +237,29 @@ export async function getAllTokenBalancesBetweenDatesBitquery(
       previousBalance
     );
 
-    let balance = await tokenAccountBalanceOnDateBitquery(
-      tokenAccountAddress,
-      tokenAccountOwnerAddress,
-      tokenMintAddress,
-      currentDate,
-      previousBalance,
-      previousDate
-    );
+    try {
+      let balance = await tokenAccountBalanceOnDateBitquery(
+        tokenAccountAddress,
+        tokenAccountOwnerAddress,
+        tokenMintAddress,
+        currentDate,
+        previousBalance,
+        previousDate
+      );
 
-    console.log(currentDate, "balance = ", balance);
+      console.log(currentDate, "balance = ", balance);
 
-    allBalances.push({ date: currentDate, balance: balance });
+      allBalances.push({ date: currentDate, balance: balance });
 
-    // only reset these if we aren't forcing a full load
-    if (fullLoadZeroBalanceDate === undefined) {
-      previousDate = new Date(currentDate);
-      previousBalance = balance;
+      // only reset these if we aren't forcing a full load
+      if (fullLoadZeroBalanceDate === undefined) {
+        previousDate = new Date(currentDate);
+        previousBalance = balance;
+      }
+    } catch (error) {
+      allBalances.push({ date: currentDate, balance: -1 });
+
+      // leave previousDate/previousBalance the same, can try again from there the next loop
     }
 
     currentDate = new Date(currentDate.valueOf() + 86400000); // this doesn't work if we need a DST timezone like PST/PDT
@@ -271,8 +282,10 @@ export type BitqueryTokenAccountInfo = {
 
 // Queries bitquery solana.transfers for all token accounts belonging to `tokenMintAddress` with any activity between
 // `startDate` and `endDate`
-// Returns a list of BitqueryTokenAccountInfo (i.e. this would probably be used to see which new accounts were
-// created that day and for updating balance/txn count for any previous accounts against some running db list)
+// Returns a map of {tokenAccountAddress => BitqueryTokenAccountInfo} (i.e. this would probably be used to see which
+// new accounts were created that day and for updating balance/txn count for any previous accounts against some running
+// db list)
+//
 // Note this interface is slightly different than tokenAccountsInfoBetweenDatesSolanaFm. Since bitquery
 // solana.transfers doesn't have any balances, we return the change in balance between startDate and endDate rather
 // than the final balance (so this must be combined with some previous call's balance or called multiple times)
@@ -332,5 +345,49 @@ export async function tokenAccountsInfoBetweenDatesBitquery(
   // TODO: we're ignoring closed accounts right now, in the future we could take it into account somehow (e.g. manually
   // reduce the number of "total accounts")
 
-  return Object.values(accountInfoMap);
+  return accountInfoMap;
+}
+
+// Queries solana.transactions for the transactions in transactionHashes
+// Returns a map of {txnHash: success}
+export async function getTransactionSuccessForHashesBitquery(
+  transactionHashes: Array<string>
+) {
+  const pageLimit = 2500;
+
+  let hashToSuccessMap: { [key: string]: boolean } = {};
+
+  for (let i = 0; i < transactionHashes.length; i += pageLimit) {
+    const transactionSlices = transactionHashes.slice(i, i + pageLimit);
+
+    const { data } = await queryApollo(
+      bitqueryApolloClient,
+      `query TransactionsForHashes($txnHashes: [String!]!) {
+      solana {
+        transactions(signature: {in: $txnHashes}) {
+          signature
+          success
+        }
+      }
+    }
+    `,
+      {
+        txnHashes: transactionSlices,
+      }
+    );
+
+    const transactions: Array<BitquerySolanaTransaction> =
+      data["solana"]["transactions"];
+
+    transactions.forEach((txn) => {
+      hashToSuccessMap[txn.signature] = txn.success;
+    });
+
+    // rate limiting here in case we make too many calls
+    await new Promise((f) => setTimeout(f, TIMEOUT_BETWEEN_CALLS));
+  }
+
+  console.log("hash to success map", hashToSuccessMap);
+
+  return hashToSuccessMap;
 }
