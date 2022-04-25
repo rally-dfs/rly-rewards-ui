@@ -13,7 +13,7 @@ const TIMEOUT_BETWEEN_CALLS = 10000;
 
 type BitquerySolanaTransfer = {
   amount: number;
-  transferType: string; // i think this is always "transfer"?
+  transferType: string; // "transfer" "mint" "burn" "self", maybe others?
   transaction: BitquerySolanaTransaction;
   sender: BitquerySolanaTransferAccount;
   receiver: BitquerySolanaTransferAccount;
@@ -139,6 +139,8 @@ export async function tokenAccountBalanceOnDateBitquery(
   // since this is cached from a previous `endDateExclusive`, it's also an exclusive bound
   previousEndDateExclusive: Date
 ) {
+  const allowedTransferTypes = new Set(["transfer", "mint", "burn"]);
+
   const transfersOut: Array<BitquerySolanaTransfer> =
     await _transferAmountsWithFilter(
       tokenMintAddress,
@@ -152,8 +154,7 @@ export async function tokenAccountBalanceOnDateBitquery(
 
   const filteredTransfersOut = transfersOut.filter((transfer) => {
     return (
-      // not sure what other transferTypes exist but seems safe to filter by "transfer"
-      transfer.transferType === "transfer" &&
+      allowedTransferTypes.has(transfer.transferType) &&
       // this owner might have other token accounts so filter those out
       transfer.sender.mintAccount == tokenAccountAddress &&
       transfer.transaction.success
@@ -182,8 +183,7 @@ export async function tokenAccountBalanceOnDateBitquery(
   // same as totalTransfersOut but filter by `transfer.receiver` instead of `transfer.sender`
   const filteredTransfersIn = transfersIn.filter((transfer) => {
     return (
-      // not sure what other transferTypes exist but seems safe to filter by "transfer"
-      transfer.transferType === "transfer" &&
+      allowedTransferTypes.has(transfer.transferType) &&
       // this owner might have other token accounts so filter those out
       transfer.receiver.mintAccount == tokenAccountAddress &&
       transfer.transaction.success
