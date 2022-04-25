@@ -4,12 +4,12 @@ import { clusterApiUrl, PublicKey, Connection } from "@solana/web3.js";
 import { getAccount, TOKEN_PROGRAM_ID, Account } from "@solana/spl-token";
 import {
   tokenAccountBalanceOnDateSolanaFm,
-  getAllTokenBalancesBetweenDatesSolanaFm,
+  getDailyTokenBalancesBetweenDatesSolanaFm,
   tokenAccountsInfoBetweenDatesSolanaFm,
 } from "../utils/solanaFm";
 import {
   tokenAccountBalanceOnDateBitquery,
-  getAllTokenBalancesBetweenDatesBitquery,
+  getDailyTokenBalancesBetweenDatesBitquery,
   tokenAccountsInfoBetweenDatesBitquery,
 } from "../utils/bitquery";
 
@@ -203,29 +203,35 @@ export async function getServerSideProps() {
   //   props: packagedData,
   // };
 
-  // e.g. sfm looking up sRLY balance for DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ on 2022-03-28
+  // note on dates - all startDates are inclusive and all endDates are exclusive (any transactions exactly on
+  // endDate will not be included). this lets us pass in dates with T00:00:00 for both dates everywhere without
+  // double counting anything (internally we need to adjust this for bitquery, which treats end dates as inclusive)
+
+  // e.g. sfm looking up sRLY balance for DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ on 2022-03-15 (exclusive)
   // let balance = await tokenAccountBalanceOnDateSolanaFm(
   //   "DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ",
   //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
-  //   new Date("2022-03-28T00:00:00Z"),
+  //   new Date("2022-03-15T00:00:00Z"),
   //   // 0 + a date assumes the all activity happened after that date
   //   0,
   //   new Date("2022-02-01T00:00:00Z")
   // );
   // console.log("balance", balance);
 
-  // e.g. bitquery looking up sRLY balance for DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ on 2022-03-28
+  // e.g. bitquery looking up sRLY balance for DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ on 2022-03-15 (exclusive)
   // await tokenAccountBalanceOnDateBitquery(
   //   "DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ",
   //   "Q11FqKrnqyW2w3dD7g14NfHgu4Knii2Y2ERrVrZAkEU",
   //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
   //   new Date("2022-03-15T00:00:00Z"),
   //   85303.53,
+  // // this cached value is also exclusive, i.e. if there was a txn exactly on 2022-03-14T00:00:00Z, the 85303.53
+  // // would not include it
   //   new Date("2022-03-14T00:00:00Z")
   // );
 
-  // sfm all balances
-  // await getAllTokenBalancesBetweenDatesSolanaFm(
+  // sfm daily balances (calls tokenAccountBalanceOnDateSolanaFm for every endDate (exclusive) between 2-20 and 3-28
+  // await getDailyTokenBalancesBetweenDatesSolanaFm(
   //   "DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ",
   //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
   //   new Date("2022-02-20T00:00:00Z"),
@@ -233,17 +239,18 @@ export async function getServerSideProps() {
   //   undefined
   // );
 
-  // sfm all balances with force load full
-  // await getAllTokenBalancesBetweenDatesSolanaFm(
+  // sfm daily balances with force load full (same as above but makes a full call every time instead of passing
+  // each loop's result into the next iteration - just for testing/sanity checking)
+  // await getDailyTokenBalancesBetweenDatesSolanaFm(
   //   "DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ",
   //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
-  //   new Date("2022-02-03T00:00:00Z"),
+  //   new Date("2022-02-20T00:00:00Z"),
   //   new Date("2022-03-28T00:00:00Z"),
   //   new Date("2021-12-19T00:00:00Z")
   // );
 
-  // bitquery all balances
-  // let balances = await getAllTokenBalancesBetweenDatesBitquery(
+  // bitquery daily balances
+  // let balances = await getDailyTokenBalancesBetweenDatesBitquery(
   //   "DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ",
   //   "Q11FqKrnqyW2w3dD7g14NfHgu4Knii2Y2ERrVrZAkEU",
   //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
@@ -252,34 +259,79 @@ export async function getServerSideProps() {
   //   undefined
   // );
 
-  // bitquery all balances (full load)
-  // let balances = await getAllTokenBalancesBetweenDatesBitquery(
+  // bitquery daily balances (full load)
+  // let balances = await getDailyTokenBalancesBetweenDatesBitquery(
   //   "DYmoSNjDhgSZ7marAgzQ2vLw4udyDe3uPZcugmPzVukZ",
   //   "Q11FqKrnqyW2w3dD7g14NfHgu4Knii2Y2ERrVrZAkEU",
   //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
-  //   new Date("2022-02-24T00:00:00Z"),
+  //   new Date("2022-03-05T00:00:00Z"),
   //   new Date("2022-03-28T00:00:00Z"),
-  //   new Date("2021-12-19T00:00:00Z") // gets full history back to this date for every date
+  //   new Date("2022-01-13T00:00:00Z") // gets full history back to this date for every endDate
   // );
 
   // console.log("balances", balances);
 
-  // solana.fm token accounts info for RLY (in real life, we'd run this for some APP token instead, probably less txns)
-  // let results = await tokenAccountsInfoBetweenDatesSolanaFm(
-  //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
-  //   new Date("2022-03-27T23:50:00Z"),
-  //   new Date("2022-03-28T00:00:00Z")
-  // );
-  // console.log("results ", results);
+  // token accounts info:
 
-  // // bitquery token accounts info for RLY (in real life, we'd run this for some APP token instead, probably less txns)
-  // // note this returns delta(balance) from startDate instead of actual balance
-  // let resultsbq = await tokenAccountsInfoBetweenDatesBitquery(
-  //   "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
-  //   new Date("2022-03-27T23:50:00Z"),
-  //   new Date("2022-03-28T00:00:00Z")
-  // );
-  // console.log("results ", resultsbq);
+  let startDate = new Date("2022-03-27T00:00:00Z");
+  let endDate = new Date("2022-03-28T00:00:00Z");
+
+  // solana.fm token accounts info for RLY (in real life, we'd run this for some APP token instead, probably less txns)
+  let tokenAccountsInfoSFMMap = await tokenAccountsInfoBetweenDatesSolanaFm(
+    "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
+    startDate,
+    endDate
+  );
+  console.log("results ", tokenAccountsInfoSFMMap);
+
+  // bitquery token accounts info for RLY (in real life, we'd run this for some APP token instead, probably less txns)
+  // note this returns delta(balance) from startDate instead of actual balance
+  let tokenAccountsInfoBQMap = await tokenAccountsInfoBetweenDatesBitquery(
+    "RLYv2ubRMDLcGG2UyvPmnPmkfuQTsMbg4Jtygc7dmnq",
+    startDate,
+    endDate
+  );
+  console.log("results ", tokenAccountsInfoBQMap);
+
+  // note, after some manual testing, there's a lot of buggy data on solana.fm for the /account-inputs/tokens/{token}
+  // call. sometimes txns are missing entirely (even if it shows up in /account-inputs/{account} and sometimes the
+  // postBalance is completely wrong so its incoming/outgoing is miscategorized
+  // so SFM is probably useful just for the `balance` field and can defer 100% to bitquery for outgoing/incoming txns
+  // i.e. the following logic probably isn't needed, though left it in just for reference
+
+  // now cross reference the BQ results to determine where the subOneTransactions should go
+  // (this is needed since SFM doesn't have decimals so we can't tell what's a 0 txn vs a `0 < x < 1` txn)
+  Object.values(tokenAccountsInfoSFMMap!).forEach((sfmAccountInfo) => {
+    const bqAccountInfo =
+      tokenAccountsInfoBQMap[sfmAccountInfo.tokenAccountAddress];
+
+    sfmAccountInfo.subOneTransactions.forEach((transaction) => {
+      // this account isn't in BQ at all, so none of these need to be sorted into incoming/outgoing.
+      // these are net zero txns and can be discarded
+      if (bqAccountInfo === undefined) {
+        return;
+      }
+
+      // defer to BQ to see if it was truly incoming or outgoing and sort it there
+      if (bqAccountInfo.incomingTransactions.has(transaction)) {
+        sfmAccountInfo.incomingTransactions.add(transaction);
+      }
+      if (bqAccountInfo.outgoingTransactions.has(transaction)) {
+        sfmAccountInfo.outgoingTransactions.add(transaction);
+      }
+      // (if it's in neither of the above, that also means it didn't show up in BQ at all and was a net zero txn)
+    });
+  });
+
+  // after cross referencing, filter out anything without incoming/outgoing txns (i.e. they ended up being all net zero)
+  let sfmTokenAccounts = Object.values(tokenAccountsInfoSFMMap!).filter(
+    (sfmAccountInfo) => {
+      return (
+        sfmAccountInfo.incomingTransactions.size > 0 ||
+        sfmAccountInfo.outgoingTransactions.size > 0
+      );
+    }
+  );
 
   return { props: {} };
 }

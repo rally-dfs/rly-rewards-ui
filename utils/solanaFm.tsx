@@ -18,10 +18,13 @@ const EXPONENTIAL_FACTOR = 10;
 // out how to unfreeze, just had to make a new one). probably not intentional but good to be very conservative here.
 const TIMEOUT_BETWEEN_CALLS = 10000;
 
+// note endDate can be either exclusive or inclusive, depending on which `url` is being called. it's up to the caller
+// to convert endDate into the proper inclusivity before calling this function
+// this is almost certainly a bug in solana.fm, so it may change unannounced in the future (see notes below)
 async function _fetchAllResultsWithUrlAndDates<T>(
   url: URL,
-  startDate: Date,
-  endDate: Date
+  startDateInclusive: Date,
+  endDateInclusiveOrExclusive: Date
 ) {
   const pageLimit = 100;
 
@@ -32,9 +35,9 @@ async function _fetchAllResultsWithUrlAndDates<T>(
 
   const params = new URLSearchParams([["limit", pageLimit.toString()]]);
 
-  console.log("start", startDate, "end", endDate);
-  params.set("from", startDate.toISOString());
-  params.set("to", endDate.toISOString());
+  console.log("start", startDateInclusive, "end", endDateInclusiveOrExclusive);
+  params.set("from", startDateInclusive.toISOString());
+  params.set("to", endDateInclusiveOrExclusive.toISOString());
   url.search = params.toString();
 
   let response = await fetch(url.toString(), { headers: requestHeaders });
@@ -86,7 +89,7 @@ async function _fetchAllResultsWithUrlAndDates<T>(
 }
 
 // Queries solana.fm account-inputs for the balance of `tokenAccountAddress` (which must belong to `tokenMintAddress`)
-// with an end date of `date`
+// with an end date of `endDateExclusive` (any transactions exactly on endDateExclusive will not be counted)
 // Uses exponentially larger time windows until we find the most recent transaction and then read `postBalance` from that
 // If previousBalance and previousDate are cached (e.g. from a previous call) and passed in, then we stop there and
 // return those values if nothing is found (can also use it to pass in 0 and a min startDate to limit the search)
@@ -94,25 +97,34 @@ async function _fetchAllResultsWithUrlAndDates<T>(
 export async function tokenAccountBalanceOnDateSolanaFm(
   tokenAccountAddress: string,
   tokenMintAddress: string,
-  date: Date,
+  endDateExclusive: Date,
   previousBalance: number,
-  previousDate: Date
+  // since this is cached from a previous `endDateExclusive`, it's also an exclusive bound
+  previousEndDateExclusive: Date
 ) {
   const url = new URL(
     `https://api-alpha.solana.fm/api/v1/account-inputs/${tokenAccountAddress}`
   );
 
   let delta = START_TIME_DELTA;
-  let startDate = new Date(date.getTime() - delta);
+  let startDateInclusive = new Date(endDateExclusive.getTime() - delta);
 
   // this won't ever infinite loop, eventually we'll pass previousDate and return
   while (true) {
     // console.log(url.toString(), ", response", response, results);
 
+    // note: solana.fm has some weird inconsistencies. /account-inputs/tokens/{mintAddress} (used elsewhere) treats end
+    // date as exclusive, but /account-inputs/{tokenAccountAddress} (used here) treats end date as inclusive.
+    // it's probably a bug, so if end date suddenly starts being treated as exclusive instead in the future (and starts
+    // leaving off the last transaction) in the future, we may need to just tweak end date to be exclusive here
+    // (i.e. don't subtract 1ms before passing endDateExclusive into fetch)
+    // FWIW, solana.fm said end date should be exclusive, so the call here is probably the bug
+    const endDateInclusive = new Date(endDateExclusive.valueOf() - 1);
+
     let results = await _fetchAllResultsWithUrlAndDates<SolanaFMAccountInput>(
       url,
-      startDate,
-      date
+      startDateInclusive,
+      endDateInclusive
     );
 
     if (results === undefined) {
@@ -150,13 +162,15 @@ export async function tokenAccountBalanceOnDateSolanaFm(
     }
 
     // didn't find any results between previousDate and date so just return previousBalance
-    if (startDate < previousDate) {
+    // (make sure we use < and not <= here, since startDate is inclusive and previousDate is exclusive. i.e. if there
+    // was a txn exactly on previousEndDateExclusive, we want to make sure we still tried to fetch it)
+    if (startDateInclusive < previousEndDateExclusive) {
       return previousBalance;
     }
 
     // didn't find any results but there's still more time to check, so loop again
     delta *= EXPONENTIAL_FACTOR;
-    startDate = new Date(date.getTime() - delta);
+    startDateInclusive = new Date(endDateExclusive.getTime() - delta);
 
     // rate limiting here in case we make too many calls
     await new Promise((f) => setTimeout(f, TIMEOUT_BETWEEN_CALLS));
@@ -164,18 +178,20 @@ export async function tokenAccountBalanceOnDateSolanaFm(
 }
 
 export type SolanaFMTokenBalance = {
-  date: Date;
+  dateExclusive: Date;
   balance: number;
 };
 
 // Calls tokenAccountBalanceOnDateSolanaFm for all balances between startDate and endDate.
+// Like tokenAccountBalanceOnDateSolanaFm, endDate is exclusive (any transactions exactly on endDateExclusive will
+// not be counted and will be included in the next day instead)
 // Currently just returns an array of SolanaFMTokenBalance but this probably will eventually be called to backfill
 // all the dates for a token in the DB or something.
-export async function getAllTokenBalancesBetweenDatesSolanaFm(
+export async function getDailyTokenBalancesBetweenDatesSolanaFm(
   tokenAccountAddress: string,
   tokenMintAddress: string,
-  startDate: Date,
-  endDate: Date,
+  earliestEndDateExclusive: Date,
+  latestEndDateExclusive: Date,
   // If fullLoadZeroBalanceDate is set, then we assume 0 balance on that date (i.e. assume this is the earliest date
   // there was any activity in this account) and do a full load for every date. Otherwise it just uses the previously
   // fetched data (which probably matches what we'd do in real life if we ran this every day in a cron).
@@ -189,20 +205,20 @@ export async function getAllTokenBalancesBetweenDatesSolanaFm(
   // 0 + a date assumes the all activity happened after that date
   let previousBalance = 0;
   // TODO: this is just placeholder, should replace it with something older, e.g. Dec 2021 was when sRLY was minted.
-  let previousDate =
+  let previousEndDateExclusive =
     fullLoadZeroBalanceDate || new Date("2022-01-31T00:00:00Z");
 
-  let currentDate = new Date(startDate);
+  let currentEndDateExclusive = new Date(earliestEndDateExclusive);
 
-  while (currentDate <= endDate) {
-    console.log("fetching date", currentDate);
+  while (currentEndDateExclusive <= latestEndDateExclusive) {
+    console.log("fetching date", currentEndDateExclusive);
 
     let balance = await tokenAccountBalanceOnDateSolanaFm(
       tokenAccountAddress,
       tokenMintAddress,
-      currentDate,
+      currentEndDateExclusive,
       previousBalance,
-      previousDate
+      previousEndDateExclusive
     );
 
     if (balance === undefined) {
@@ -210,17 +226,26 @@ export async function getAllTokenBalancesBetweenDatesSolanaFm(
       continue;
     }
 
-    console.log(currentDate, "balance = ", balance);
+    console.log(currentEndDateExclusive, "balance = ", balance);
 
-    allBalances.push({ date: currentDate, balance: balance });
+    allBalances.push({
+      dateExclusive: currentEndDateExclusive,
+      balance: balance,
+    });
 
     // only reset these if we aren't forcing a full load
     if (fullLoadZeroBalanceDate === undefined) {
-      previousDate = new Date(currentDate);
+      previousEndDateExclusive = new Date(currentEndDateExclusive);
       previousBalance = balance;
     }
 
-    currentDate = new Date(currentDate.valueOf() + 86400000); // this doesn't work if we need a DST timezone like PST/PDT
+    // since endDate is exclusive and startDate is inclusive (in the call to _fetchAllResultsWithUrlAndDates inside
+    // tokenAccountBalanceOnDateSolanaFm), we can just +1 day here safely without double counting anything
+    // (though it doesn't really matter for this call anyway since SFM has the balance info so double counting
+    // is safe, unlike bitquery)
+    currentEndDateExclusive = new Date(
+      currentEndDateExclusive.valueOf() + 86400000 // this doesn't work if we need a DST timezone like PST/PDT
+    );
 
     // rate limiting in case we make too many calls
     await new Promise((f) => setTimeout(f, TIMEOUT_BETWEEN_CALLS));
@@ -242,11 +267,14 @@ export type SolanaFMTokenAccountInfo = {
 };
 
 // Queries solana.fm account-inputs for all token accounts belonging to `tokenMintAddress` with any activity between
-// `startDate` and `endDate`
+// `startDateInclusive` and `endDateExclusive`
 // Returns a map of {tokenAccountAddress => SolanaFMTokenAccountInfo} (i.e. this would probably be used to see which new
 // accounts were created that day and for updating balance/txn count for any previous accounts against some running
 // db list)
 // https://docs.solana.fm/docs/apis/account-input#retrieve-account-inputs-by-a-specific-token
+//
+// Any transactions exactly on startDateInclusive will be included and any exactly on endDateExclusive will not be
+// included. This lets us pass in dates with T00:00:00 for both dates without double counting anything
 //
 // We're doing some extra filtering of the raw results to better match bitquery's results (which is pretty much what
 // we desire). i.e. bitquery automatically excludes failed transactions, automatically excludes CloseAccount
@@ -256,17 +284,23 @@ export type SolanaFMTokenAccountInfo = {
 // (tokenAccountsInfoBetweenDatesBitquery) to determine how to categorize or discard them.
 export async function tokenAccountsInfoBetweenDatesSolanaFm(
   tokenMintAddress: string,
-  startDate: Date,
-  endDate: Date
+  startDateInclusive: Date,
+  endDateExclusive: Date
 ) {
+  // note: solana.fm has some weird inconsistencies. /account-inputs/tokens/{mintAddress} (used here) treats end date
+  // as exclusive, but /account-inputs/{tokenAccountAddress} (used elsewhere) treats end date as inclusive.
+  // it's probably a bug, so if end date suddenly starts being treated as inclusive instead in the future (and starts
+  // double counting txns) in the future, we may need to just tweak end date to be inclusive (i.e. subtract 1ms before
+  // passing endDateExclusive into fetch)
+  // FWIW, solana.fm said end date should be exclusive, so the call elsewhere is probably the bug
   const url = new URL(
     `https://api-alpha.solana.fm/api/v1/account-inputs/tokens/${tokenMintAddress}`
   );
 
   let results = await _fetchAllResultsWithUrlAndDates<SolanaFMAccountInput>(
     url,
-    startDate,
-    endDate
+    startDateInclusive,
+    endDateExclusive
   );
 
   if (results === undefined) {
