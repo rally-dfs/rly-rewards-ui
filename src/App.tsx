@@ -1,7 +1,6 @@
 import React from 'react';
 import './App.css';
 import Card from './components/card';
-import ConnectWalletPrompt from './components/connect_wallet_prompt';
 
 function App() {
   return (
@@ -23,10 +22,10 @@ function App() {
           </div>
         </div>
       </header>
-      <h1>Migrate From RLY v2 to RLY v3</h1>
+      <h1>RLY Network Metrics</h1>
 
       <Card style={{ marginTop: 12 }}>
-        <ConnectWalletPrompt />
+        <div>something will go here</div>
       </Card>
     </div>
   );
