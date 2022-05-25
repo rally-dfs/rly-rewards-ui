@@ -17,6 +17,7 @@
   padding: 24px;
   min-width: 300px;
   min-height: 200px;
+  border: 1px solid black;
 }
 
 .card_small {
