@@ -4,7 +4,7 @@
   display: flex;
 }
 .text-white {
-  color: white;
+  color: #dfdfdf;
 }
 .jc-center {
   justify-content: center;
@@ -12,7 +12,6 @@
 .ai-center {
   align-items: center;
 }
-
 
 #root {
   height: 100vh;
@@ -27,12 +26,11 @@
   max-width: 1280px;
   margin: auto;
 
-  color: white;
+  color: #dfdfdf;
   font-family: 'Montserrat';
 }
 
 h1 {
-  color: white;
   margin: 0;
   font-family: 'Montserrat';
   font-size: 32pt;
