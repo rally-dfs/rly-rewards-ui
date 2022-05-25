@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import Card from './components/card';
+import MetricsContainer from './components/metrics_container';
 
 function App() {
   return (
@@ -24,9 +24,7 @@ function App() {
       </header>
       <h1>RLY Network Metrics</h1>
 
-      <Card style={{ marginTop: 12 }}>
-        <div>something will go here</div>
-      </Card>
+      <MetricsContainer />
     </div>
   );
 }

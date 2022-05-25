@@ -1,8 +1,25 @@
+.card_container {
+  max-width: 720px;
+  min-width: 336px;
+  margin: 24, 'auto';
+}
 
-.card  {
+.small_card_wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.card {
   background-color: #212121;
   border-radius: 8px;
-  margin: 12px auto;
+  margin: 12px 0px;
   padding: 24px;
-  max-width: 720px;
+  min-width: 300px;
+  min-height: 200px;
+}
+
+.card_small {
+  max-width: 300px;
+  min-width: 300px;
 }
