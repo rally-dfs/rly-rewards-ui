@@ -2,12 +2,13 @@ import React from 'react';
 import Card from './card';
 
 import CardClasses from '../styles/card.module.css';
-import StyledButton from './styled_button';
 import { useFetchResource } from '../use_fetch_resource';
 import LoadingSpinner from './loading_spinner';
 import TotalTokenMintsTracked from './stats_containers/total_token_mints_tracked';
 import TotalWalletsByDay from './stats_containers/total_wallets_by_day';
 import TableExampleStat from './stats_containers/table_example_stat';
+import MetricHeader from './metric_ui_elements/metric_header';
+import StandaloneNumberMetric from './metric_ui_elements/standalone_number_metric';
 
 const MetricsContainer = () => {
   const [loading, , allData] = useFetchResource(
@@ -28,7 +29,8 @@ const MetricsContainer = () => {
         <TotalTokenMintsTracked data={allData} />
 
         <Card variant="small">
-          <div>something will go here</div>
+          <MetricHeader title="TVL in TBCs" />
+          <StandaloneNumberMetric metric="1.3m sol" />
         </Card>
       </div>
 
