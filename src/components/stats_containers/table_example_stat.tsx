@@ -2,8 +2,8 @@ import React from 'react';
 import { StatElement } from '../../types/stat_element';
 
 import Card from '../card';
-import DataTable from '../data_table';
-import MetricHeader from '../metric_header';
+import DataTable from '../metric_ui_elements/data_table';
+import MetricHeader from '../metric_ui_elements/metric_header';
 
 const TableExampleStat = (props: StatElement) => {
   if (!props.data) return null;
