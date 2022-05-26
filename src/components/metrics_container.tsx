@@ -4,21 +4,25 @@ import Card from './card';
 import CardClasses from '../styles/card.module.css';
 import StyledButton from './styled_button';
 import StyledLink from './styled_link';
+import { useFetchResource } from '../use_fetch_resource';
+import LoadingSpinner from './loading_spinner';
+import TotalTokenMintsTracked from './stats_containers/total_token_mints_tracked';
 
 const MetricsContainer = () => {
+  const [loading, , allData] = useFetchResource('http://localhost:3001/');
+
+  if (loading) {
+    return (
+      <div className={CardClasses.card_container}>
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={CardClasses.card_container}
-      style={{
-        marginTop: 24,
-        marginBottom: 24,
-        marginLeft: 'auto',
-        marginRight: 'auto',
-      }}>
+    <div className={CardClasses.card_container}>
       <div className={CardClasses.small_card_wrapper}>
-        <Card variant="small">
-          <div>something will go here</div>
-        </Card>
+        <TotalTokenMintsTracked data={allData} />
 
         <Card variant="small">
           <div>something will go here</div>
