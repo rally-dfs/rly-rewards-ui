@@ -1,0 +1,22 @@
+.table_container {
+  margin: 24px 0px;
+}
+
+.table_row {
+  display: flex;
+  justify-content: space-between;
+  flex-flow: row wrap;
+  align-items: center;
+}
+
+.table_row:nth-child(even) {
+  background-color: #323232;
+}
+.table_row:nth-child(odd) {
+  background-color: #272727;
+}
+
+.table_cell {
+  flex-grow: 1;
+  overflow: hidden;
+}
