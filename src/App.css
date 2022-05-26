@@ -13,6 +13,10 @@
   align-items: center;
 }
 
+html {
+  background-color: #121212;
+}
+
 #root {
   height: 100vh;
   width: 100vw;
