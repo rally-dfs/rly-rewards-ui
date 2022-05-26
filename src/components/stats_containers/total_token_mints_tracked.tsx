@@ -1,5 +1,6 @@
 import React from 'react';
 import Card from '../card';
+import MetricHeader from '../metric_ui_elements/metric_header';
 import StandaloneNumberMetric from '../metric_ui_elements/standalone_number_metric';
 
 type TotalTokenMintsTrackedProps = {
@@ -20,10 +21,8 @@ const TotalTokenMintsTracked = ({
 
   return (
     <Card variant="small">
-      <StandaloneNumberMetric
-        title="Tokens Tracked"
-        metric={totalTokensTracked()}
-      />
+      <MetricHeader title="Tokens Tracked" />
+      <StandaloneNumberMetric metric={totalTokensTracked()} />
     </Card>
   );
 };

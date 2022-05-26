@@ -49,3 +49,9 @@ header img {
   height: 34px;
   width: 34px;
 }
+
+.standalone_number_metric {
+  font-size: 72;
+  margin-top: 12px;
+  line-break: normal;
+}

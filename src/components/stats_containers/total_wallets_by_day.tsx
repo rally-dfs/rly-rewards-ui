@@ -41,7 +41,7 @@ const TotalWalletsByDay = ({ data }: TotalWalletsByDayProps) => {
 
   return (
     <Card>
-      <MetricHeader title="Total Non Zero Wallets" />
+      <MetricHeader title="Total Token Holding Wallets" />
       <BasicLineGraph data={dataToGraph} />
     </Card>
   );
