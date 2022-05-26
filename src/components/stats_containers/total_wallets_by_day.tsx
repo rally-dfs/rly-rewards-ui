@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Line, LineChart } from 'recharts';
+import BasicLineGraph from '../basic_line_graph';
 import Card from '../card';
 import MetricHeader from '../metric_header';
 
@@ -8,26 +7,10 @@ type TotalWalletsByDayProps = {
 };
 
 const TotalWalletsByDay = ({ data }: TotalWalletsByDayProps) => {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const [graphSize, setGraphSize] = useState<{ x: number; y: number }>({
-    x: 0,
-    y: 0,
-  });
-
-  useEffect(() => {
-    if (!chartContainerRef.current) {
-      return;
-    }
-
-    setGraphSize({
-      x: chartContainerRef.current.offsetWidth,
-      y: chartContainerRef.current.offsetHeight,
-    });
-  }, [chartContainerRef]);
-
   if (!data) {
     return null;
   }
+
   const walletCountsByDayByToken: Record<
     number,
     Record<string, number>
@@ -59,11 +42,7 @@ const TotalWalletsByDay = ({ data }: TotalWalletsByDayProps) => {
   return (
     <Card>
       <MetricHeader title="Total Non Zero Wallets" />
-      <div style={{ width: '100%', height: 300 }} ref={chartContainerRef}>
-        <LineChart width={graphSize.x} height={graphSize.y} data={dataToGraph}>
-          <Line type="monotone" dataKey="y" stroke="#F2550A" strokeWidth={2} />
-        </LineChart>
-      </div>
+      <BasicLineGraph data={dataToGraph} />
     </Card>
   );
 };
