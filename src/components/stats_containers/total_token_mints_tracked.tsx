@@ -1,6 +1,6 @@
 import React from 'react';
 import Card from '../card';
-import StandaloneNumberMetric from '../standalone_number_metric';
+import StandaloneNumberMetric from '../metric_ui_elements/standalone_number_metric';
 
 type TotalTokenMintsTrackedProps = {
   data: any;

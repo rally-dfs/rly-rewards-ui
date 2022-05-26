@@ -1,6 +1,6 @@
-import BasicLineGraph from '../basic_line_graph';
+import BasicLineGraph from '../metric_ui_elements/basic_line_graph';
 import Card from '../card';
-import MetricHeader from '../metric_header';
+import MetricHeader from '../metric_ui_elements/metric_header';
 
 type TotalWalletsByDayProps = {
   data: any;
