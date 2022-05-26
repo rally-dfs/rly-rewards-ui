@@ -1,7 +1,9 @@
 .card_container {
   max-width: 720px;
   min-width: 336px;
-  margin: 24, 'auto';
+  margin-top: 24px;
+  margin-bottom: 24px;
+  margin: 24px auto;
 }
 
 .small_card_wrapper {
