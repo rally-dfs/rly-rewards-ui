@@ -3,13 +3,15 @@ import Card from './card';
 
 import CardClasses from '../styles/card.module.css';
 import StyledButton from './styled_button';
-import StyledLink from './styled_link';
 import { useFetchResource } from '../use_fetch_resource';
 import LoadingSpinner from './loading_spinner';
 import TotalTokenMintsTracked from './stats_containers/total_token_mints_tracked';
+import TotalWalletsByDay from './stats_containers/total_wallets_by_day';
 
 const MetricsContainer = () => {
-  const [loading, , allData] = useFetchResource('http://localhost:3001/');
+  const [loading, , allData] = useFetchResource(
+    'http://rly-rewards-env.eba-dnwcpkfk.us-west-1.elasticbeanstalk.com/',
+  );
 
   if (loading) {
     return (
@@ -29,13 +31,7 @@ const MetricsContainer = () => {
         </Card>
       </div>
 
-      <Card>
-        <div>something will go here</div>
-        <StyledLink
-          href="https://github.com/rally-dfs/rly-rewards"
-          text="Link to UI project"
-        />
-      </Card>
+      <TotalWalletsByDay data={allData} />
 
       <Card variant="small">
         <div>something will go here</div>
