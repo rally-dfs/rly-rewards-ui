@@ -7,6 +7,7 @@ import { useFetchResource } from '../use_fetch_resource';
 import LoadingSpinner from './loading_spinner';
 import TotalTokenMintsTracked from './stats_containers/total_token_mints_tracked';
 import TotalWalletsByDay from './stats_containers/total_wallets_by_day';
+import TableExampleStat from './stats_containers/table_example_stat';
 
 const MetricsContainer = () => {
   const [loading, , allData] = useFetchResource(
@@ -33,10 +34,7 @@ const MetricsContainer = () => {
 
       <TotalWalletsByDay data={allData} />
 
-      <Card variant="small">
-        <div>something will go here</div>
-        <StyledButton text="Click me" onClick={() => {}} />
-      </Card>
+      <TableExampleStat data={allData as Record<string, any>} />
     </div>
   );
 };
