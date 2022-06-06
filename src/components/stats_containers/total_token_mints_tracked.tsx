@@ -4,7 +4,7 @@ import MetricHeader from '../metric_ui_elements/metric_header';
 import StandaloneNumberMetric from '../metric_ui_elements/standalone_number_metric';
 
 type TotalTokenMintsTrackedProps = {
-  data: any;
+  data?: number;
   filters?: any;
 };
 
@@ -12,17 +12,13 @@ const TotalTokenMintsTracked = ({
   data,
   filters,
 }: TotalTokenMintsTrackedProps) => {
-  const totalTokensTracked = () => {
-    if (!data) {
-      return -1;
-    }
-    return data.token_account_mints.length;
-  };
-
+  if (!data) {
+    return null;
+  }
   return (
     <Card variant="small">
       <MetricHeader title="Tokens Tracked" />
-      <StandaloneNumberMetric metric={totalTokensTracked()} />
+      <StandaloneNumberMetric metric={data} />
     </Card>
   );
 };

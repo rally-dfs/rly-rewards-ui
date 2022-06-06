@@ -3,26 +3,26 @@ import Card from '../card';
 import MetricHeader from '../metric_ui_elements/metric_header';
 import { VanityMetricsResponse } from '../../types/vanity_metrics_response';
 
-type TotalWalletsByDayProps = {
+type TotalTransactionsByDayProps = {
   data: VanityMetricsResponse;
 };
 
-const TotalWalletsByDay = ({ data }: TotalWalletsByDayProps) => {
+const TotalTransactionsByDay = ({ data }: TotalTransactionsByDayProps) => {
   if (!data) {
     return null;
   }
 
-  const dataToGraph = data.walletsByDay.map((r) => ({
+  const dataToGraph = data.transactionsByDay.map((r) => ({
     x: r.date,
-    y: r.walletCount,
+    y: r.transactionCount,
   }));
 
   return (
     <Card>
-      <MetricHeader title="Total Token Holding Wallets" />
+      <MetricHeader title="Total Transactions By Day" />
       <BasicLineGraph data={dataToGraph} />
     </Card>
   );
 };
 
-export default TotalWalletsByDay;
+export default TotalTransactionsByDay;
