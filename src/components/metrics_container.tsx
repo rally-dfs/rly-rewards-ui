@@ -4,7 +4,6 @@ import Card from './card';
 import CardClasses from '../styles/card.module.css';
 import { useFetchResource } from '../use_fetch_resource';
 import LoadingSpinner from './loading_spinner';
-import TotalTokenMintsTracked from './stats_containers/total_token_mints_tracked';
 import MetricHeader from './metric_ui_elements/metric_header';
 import StandaloneNumberMetric from './metric_ui_elements/standalone_number_metric';
 import { VanityMetricsResponse } from '../types/vanity_metrics_response';
@@ -29,23 +28,24 @@ const MetricsContainer = () => {
   return (
     <div className={CardClasses.card_container}>
       <div className={CardClasses.small_card_wrapper}>
-        <TotalTokenMintsTracked data={allData?.totalTokensTracked} />
+        <Card variant="small">
+          <MetricHeader title="Tokens Tracked" />
+          <StandaloneNumberMetric metric={allData.totalTokensTracked} />
+        </Card>
 
         <Card variant="small">
           <MetricHeader title="TVL in TBCs" />
-          <StandaloneNumberMetric metric={allData.tvl.toString()} />
+          <StandaloneNumberMetric metric={allData.tvl} />
         </Card>
 
         <Card variant="small">
           <MetricHeader title="Total Wallets" />
-          <StandaloneNumberMetric metric={allData.totalWallets.toString()} />
+          <StandaloneNumberMetric metric={allData.totalWallets} />
         </Card>
 
         <Card variant="small">
           <MetricHeader title="Total Transactions" />
-          <StandaloneNumberMetric
-            metric={allData.totalTransactions.toString()}
-          />
+          <StandaloneNumberMetric metric={allData.totalTransactions} />
         </Card>
       </div>
 
