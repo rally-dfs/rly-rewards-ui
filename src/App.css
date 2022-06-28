@@ -50,6 +50,12 @@ header img {
   width: 34px;
 }
 
+header .header-company-name {
+  color: #dfdfdf;
+  font-weight: 200;
+  font-size: 24px;
+}
+
 .standalone_number_metric {
   font-size: 72;
   margin-top: 12px;

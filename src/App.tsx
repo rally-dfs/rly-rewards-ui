@@ -12,13 +12,12 @@ function App() {
             alt="small rly network logo"
           />
           <div
-            className="text-white"
+            className="text-white header-company-name"
             style={{
-              fontWeight: 600,
-              textTransform: 'uppercase',
+              fontWeight: 200,
               marginLeft: 12,
             }}>
-            RLY Network
+            <span style={{ fontWeight: 900 }}>RLY</span>Network
           </div>
         </div>
       </header>
