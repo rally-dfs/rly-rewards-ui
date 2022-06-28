@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter&family=Montserrat&display=swap');
+@font-face {
+  font-family: 'HK Guise';
+  src: local('HK Guise'), url(./styles/HKGuise-Regular.woff) format('woff');
+  font-weight: 400;
+}
 
 .d-flex {
   display: flex;
@@ -31,12 +35,11 @@ html {
   margin: auto;
 
   color: #dfdfdf;
-  font-family: 'Montserrat';
+  font-family: 'HK Guise', sans-serif;
 }
 
 h1 {
   margin: 0;
-  font-family: 'Montserrat';
   font-size: 32pt;
 }
 
