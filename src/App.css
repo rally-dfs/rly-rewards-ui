@@ -42,7 +42,6 @@ h1 {
 
 header {
   padding: 20px 0px 20px 0px;
-  font-family: 'Inter';
 }
 
 header img {
@@ -54,6 +53,7 @@ header .header-company-name {
   color: #dfdfdf;
   font-weight: 200;
   font-size: 24px;
+  margin-left: 12px;
 }
 
 .standalone_number_metric {

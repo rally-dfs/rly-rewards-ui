@@ -11,17 +11,12 @@ function App() {
             src={require('./images/rly-logo.png')}
             alt="small rly network logo"
           />
-          <div
-            className="text-white header-company-name"
-            style={{
-              fontWeight: 200,
-              marginLeft: 12,
-            }}>
+          <div className="text-white header-company-name">
             <span style={{ fontWeight: 900 }}>RLY</span>Network
           </div>
         </div>
       </header>
-      <h1>RLY Network Metrics</h1>
+      <h1>Network Metrics</h1>
 
       <MetricsContainer />
     </div>
