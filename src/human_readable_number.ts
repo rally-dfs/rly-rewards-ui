@@ -11,5 +11,5 @@ export function humanReadableNumber(value: number) {
     suffixIndex++;
   }
 
-  return valueToShow.toFixed(2) + (suffixes[suffixIndex] || '');
+  return Math.round(valueToShow) + (suffixes[suffixIndex] || '');
 }
