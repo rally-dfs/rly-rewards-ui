@@ -19,7 +19,7 @@ const TvlByDay = ({ data }: TvlByDayProps) => {
 
   return (
     <Card>
-      <MetricHeader title="TVL by Day" />
+      <MetricHeader title="Total $RLY Locked by Day" />
       <BasicLineGraph data={dataToGraph} />
     </Card>
   );

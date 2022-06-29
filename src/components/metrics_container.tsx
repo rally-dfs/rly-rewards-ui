@@ -37,12 +37,12 @@ const MetricsContainer = () => {
         </Card>
 
         <Card variant="small">
-          <MetricHeader title="TVL in TBCs" />
+          <MetricHeader title="Total $RLY Locked" />
           <StandaloneNumberMetric metric={allData.tvl} />
         </Card>
 
         <Card variant="small">
-          <MetricHeader title="Rewards Distributed" />
+          <MetricHeader title="$RLY Rewards Distributed" />
           <StandaloneNumberMetric metric={allData.totalRewards} />
         </Card>
       </div>
