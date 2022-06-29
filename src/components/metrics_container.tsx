@@ -27,11 +27,6 @@ const MetricsContainer = () => {
     <div className={CardClasses.card_container}>
       <div className={CardClasses.small_card_wrapper}>
         <Card variant="small">
-          <MetricHeader title="Tokens Tracked" />
-          <StandaloneNumberMetric metric={allData.totalTokensTracked} />
-        </Card>
-
-        <Card variant="small">
           <MetricHeader title="TVL in TBCs" />
           <StandaloneNumberMetric metric={allData.tvl} />
         </Card>
@@ -44,6 +39,11 @@ const MetricsContainer = () => {
         <Card variant="small">
           <MetricHeader title="Total Transactions" />
           <StandaloneNumberMetric metric={allData.totalTransactions} />
+        </Card>
+
+        <Card variant="small">
+          <MetricHeader title="Rewards Distributed" />
+          <StandaloneNumberMetric metric={allData.totalRewards} />
         </Card>
       </div>
 

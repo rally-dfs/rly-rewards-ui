@@ -6,4 +6,5 @@ export interface VanityMetricsResponse {
   transactionsByDay: { date: string; transactionCount: number }[];
   tvl: number;
   tvlByDay: { date: string; balance: number }[];
+  totalRewards: number;
 }
