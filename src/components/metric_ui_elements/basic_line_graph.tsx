@@ -25,7 +25,7 @@ const BasicLineGraph = ({ data }: BasicLineGraphProps) => {
   return (
     <div style={{ width: '100%', height: 300 }} ref={chartContainerRef}>
       <LineChart width={graphSize.x} height={graphSize.y} data={data}>
-        <Line type="monotone" dataKey="y" stroke="#F2550A" strokeWidth={2} />
+        <Line type="monotone" dataKey="y" stroke="#CEFF44" strokeWidth={1} />
       </LineChart>
     </div>
   );
