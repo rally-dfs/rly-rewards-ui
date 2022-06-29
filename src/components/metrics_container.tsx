@@ -12,7 +12,7 @@ import TvlByDay from './stats_containers/tvl_by_day';
 
 const MetricsContainer = () => {
   const [loading, , allData] = useFetchResource<VanityMetricsResponse>(
-    'http://rly-rewards-staging.us-west-1.elasticbeanstalk.com/vanity_metrics',
+    '/api/vanity_metrics',
   );
 
   if (loading || !allData) {
