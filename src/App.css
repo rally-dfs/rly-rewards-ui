@@ -48,15 +48,13 @@ header {
 }
 
 header img,
-header svg {
+header .icon {
   height: 34px;
   width: 34px;
 }
 
-header .header-company-name {
-  color: #dfdfdf;
-  font-weight: 200;
-  font-size: 24px;
+header .type {
+  height: 16px;
 }
 
 .standalone_number_metric {
