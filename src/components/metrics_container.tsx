@@ -8,8 +8,6 @@ import MetricHeader from './metric_ui_elements/metric_header';
 import StandaloneNumberMetric from './metric_ui_elements/standalone_number_metric';
 import { VanityMetricsResponse } from '../types/vanity_metrics_response';
 
-import TotalWalletsByDay from './stats_containers/total_wallets_by_day';
-import TotalTransactionsByDay from './stats_containers/total_transactions_by_day';
 import TvlByDay from './stats_containers/tvl_by_day';
 
 const MetricsContainer = () => {
@@ -49,8 +47,6 @@ const MetricsContainer = () => {
         </Card>
       </div>
 
-      <TotalWalletsByDay data={allData} />
-      <TotalTransactionsByDay data={allData} />
       <TvlByDay data={allData} />
     </div>
   );
