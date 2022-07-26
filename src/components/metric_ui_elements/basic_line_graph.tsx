@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Line, LineChart } from 'recharts';
+import { Line, LineChart, YAxis } from 'recharts';
 
 type BasicLineGraphProps = {
   data: { x: string | number; y: number }[];
@@ -25,7 +25,14 @@ const BasicLineGraph = ({ data }: BasicLineGraphProps) => {
   return (
     <div style={{ width: '100%', height: 300 }} ref={chartContainerRef}>
       <LineChart width={graphSize.x} height={graphSize.y} data={data}>
-        <Line type="monotone" dataKey="y" stroke="#CEFF44" strokeWidth={1} />
+        <YAxis hide={true} domain={['dataMin - 10000000', 'dataMax']} />
+        <Line
+          type="monotone"
+          dataKey="y"
+          stroke="#CEFF44"
+          strokeWidth={1}
+          dot={false}
+        />
       </LineChart>
     </div>
   );
